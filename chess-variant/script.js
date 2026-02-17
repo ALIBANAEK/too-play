@@ -33,6 +33,15 @@ let isDragging = false;
 let draggedPieceEl = null;
 let dragStartKey = null;
 let dragOffset = { x: 0, y: 0 };
+
+/* Board Navigation State */
+let isPanning = false;
+let startPanPos = { x: 0, y: 0 };
+let boardScale = 1;
+const boardArea = document.querySelector('.board-area');
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const recenterBtn = document.getElementById('recenterBtn');
 const whiteStrikesEl = document.getElementById('whiteStrikes');
 const blackStrikesEl = document.getElementById('blackStrikes');
 const promotionModal = document.getElementById('promotionModal');
@@ -223,14 +232,16 @@ function initGame() {
     updateBoardTransform();
 
     // Center the board scroll (Delayed to ensure DOM is ready)
-    setTimeout(() => {
-        const container = document.getElementById('boardScrollContainer');
-        if (container) {
-            const area = container.parentElement;
-            area.scrollLeft = (container.offsetWidth - area.offsetWidth) / 2;
-            area.scrollTop = (container.offsetHeight - area.offsetHeight) / 2;
-        }
-    }, 100);
+    setTimeout(recenterBoard, 100);
+}
+
+function recenterBoard() {
+    const container = document.getElementById('boardScrollContainer');
+    if (container) {
+        const area = container.parentElement;
+        area.scrollLeft = (container.offsetWidth - area.offsetWidth) / 2;
+        area.scrollTop = (container.offsetHeight - area.offsetHeight) / 2;
+    }
 }
 
 function createSquare(x, y) {
@@ -255,7 +266,24 @@ function createSquare(x, y) {
     if (x === 0) addCoordLabel(square, 'rank', getRankLabel(y));
 
     square.addEventListener('mousedown', (e) => {
-        handleSquareClick(x, y);
+        // Stop propagation only if we are dragging a piece.
+        // If we are not dragging a piece, let it bubble to boardArea for panning.
+        const piece = pieces.get(key);
+        if (piece && piece.color === currentTurn && mode === 'move') {
+            // Dragging piece logic will be handled here (starting the drag)
+            // But if we want to allow panning on squares containing pieces,
+            // we should be careful. Usually, dragging a piece takes precedence.
+        }
+    });
+
+    square.addEventListener('mouseup', (e) => {
+        // Only handle click if we didn't pan significantly
+        if (isPanning) return;
+        const dx = Math.abs(e.clientX - startPanPos.x);
+        const dy = Math.abs(e.clientY - startPanPos.y);
+        if (dx < 5 && dy < 5) {
+            handleSquareClick(x, y);
+        }
     });
 
     chessBoard.appendChild(square);
@@ -443,6 +471,14 @@ function handleSquareClick(x, y) {
 
 // Global Drag Handlers
 window.addEventListener('mousemove', (e) => {
+    if (isPanning) {
+        const dx = e.clientX - startPanPos.x;
+        const dy = e.clientY - startPanPos.y;
+        boardArea.scrollLeft = startPanPos.scrollLeft - dx;
+        boardArea.scrollTop = startPanPos.scrollTop - dy;
+        return;
+    }
+
     if (!isDragging || !draggedPieceEl) return;
 
     // We use translate to move the piece. 
@@ -461,6 +497,10 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
+    if (isPanning) {
+        isPanning = false;
+        boardArea.classList.remove('panning');
+    }
     if (!isDragging) return;
     isDragging = false;
     document.body.style.cursor = '';
@@ -932,7 +972,34 @@ function updateBoardTransform() {
     // We use rotate(180deg) if black. 
     // Since origin is 0,0 (board center point), rotating 180deg flips it around that point.
     const rotation = chessBoard.classList.contains('rotated-view') ? 'rotate(180deg)' : '';
-    chessBoard.style.transform = `translate(${transX}px, ${transY}px) ${rotation}`;
+    chessBoard.style.transform = `translate(${transX}px, ${transY}px) scale(${boardScale}) ${rotation}`;
+}
+
+function updateZoom(delta) {
+    boardScale = Math.max(0.2, Math.min(3, boardScale + delta));
+    updateBoardTransform();
+}
+
+// Board Controls Listeners
+if (zoomInBtn) zoomInBtn.onclick = () => updateZoom(0.1);
+if (zoomOutBtn) zoomOutBtn.onclick = () => updateZoom(-0.1);
+if (recenterBtn) recenterBtn.onclick = recenterBoard;
+
+// Drag to Pan Logic
+if (boardArea) {
+    boardArea.addEventListener('mousedown', (e) => {
+        // Only pan if we didn't click on a piece
+        if (e.target.closest('.piece')) return;
+
+        isPanning = true;
+        boardArea.classList.add('panning');
+        startPanPos = {
+            x: e.clientX,
+            y: e.clientY,
+            scrollLeft: boardArea.scrollLeft,
+            scrollTop: boardArea.scrollTop
+        };
+    });
 }
 
 /* --- Advanced Move Validation (Check/Schach) --- */

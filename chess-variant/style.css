@@ -104,6 +104,10 @@ body {
     cursor: grabbing;
 }
 
+.board-area.panning {
+    cursor: grabbing;
+}
+
 .board-container {
     width: 10000px;
     height: 10000px;
@@ -343,7 +347,7 @@ body {
     cursor: grabbing;
     z-index: 1000;
     pointer-events: none;
-    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.5));
 }
 
 .promotion-options {
@@ -738,4 +742,41 @@ body {
     right: auto;
     top: 2px;
     left: 2px;
+}
+
+/* Board Controls */
+.board-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.control-btn {
+    width: 45px;
+    height: 45px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: white;
+    font-size: 1.2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.control-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    border-color: var(--primary-color);
+}
+
+.control-btn:active {
+    transform: translateY(0);
 }

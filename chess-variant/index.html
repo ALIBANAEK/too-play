@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expanding Chess</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+
+<body>
+    <a href="../index.html" class="dashboard-btn" title="Retour au menu">🏠</a>
+
+    <!-- Mobile Toggle Button -->
+    <button class="mobile-toggle" id="toggleHistory" title="Historique">📜</button>
+
+    <div class="background-globes">
+        <div class="globe globe-1"></div>
+        <div class="globe globe-2"></div>
+    </div>
+
+    <!-- Promotion Modal -->
+    <div id="promotionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Promotion du Pion</h2>
+            <p>Choisissez votre nouvelle pièce :</p>
+            <div id="promotionOptions" class="promotion-options">
+                <!-- Pieces will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Multiplayer Modal -->
+    <div id="multiplayerModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Multijoueur</h2>
+            <div id="mpInitial">
+                <div class="color-selection">
+                    <label>Votre couleur :</label>
+                    <select id="colorSelect" class="room-input" style="margin-bottom: 5px;">
+                        <option value="white">Blancs</option>
+                        <option value="black">Noirs</option>
+                        <option value="random" selected>Aléatoire</option>
+                    </select>
+                </div>
+                <div class="room-options">
+                    <input type="text" id="roomNameInput" placeholder="Nom du salon" class="room-input"
+                        style="margin-bottom: 5px;">
+                    <label
+                        style="display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-bottom: 20px;">
+                        <input type="checkbox" id="publicRoomCheck" checked> Salon Public
+                    </label>
+                </div>
+                <button id="createRoomBtn" class="action-btn">Créer un salon</button>
+
+                <div class="separator">OU SALONS PUBLICS</div>
+
+                <div class="room-selection-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <select id="roomsSelect" class="room-input" style="margin-bottom: 0; flex: 1;">
+                        <option value="">Aucun salon public...</option>
+                    </select>
+                    <button id="joinSelectedBtn" class="action-btn" style="width: auto; padding: 0 15px;">OK</button>
+                </div>
+
+                <div class="separator">OU PAR CODE</div>
+                <input type="text" id="roomInput" placeholder="Code à 4 chiffres" class="room-input">
+                <button id="joinRoomBtn" class="action-btn">Rejoindre</button>
+                <div class="separator">OU</div>
+                <button id="localModeBtn" class="action-btn" style="background: var(--secondary-color);">Jouer en
+                    Local</button>
+            </div>
+            <div id="mpWaiting" style="display: none;">
+                <p>Salon : <strong id="displayRoomName">----</strong></p>
+                <p>Code d'accès : <strong id="displayRoomId">----</strong></p>
+                <p>En attente d'un adversaire...</p>
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victoryModal" class="modal" style="display: none;">
+        <div class="modal-content victory-content">
+            <div class="crown-icon">👑</div>
+            <h2 id="victoryTitle">VICTOIRE !</h2>
+            <p id="victoryMessage"></p>
+            <button onclick="location.reload()" class="action-btn">Rejouer</button>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rulesModal" class="modal">
+        <div class="modal-content">
+            <h2>Expanding Chess</h2>
+            <p><strong>Règles Uniques :</strong></p>
+            <ul>
+                <li>Les pièces bougent comme aux échecs classiques.</li>
+                <li><strong>Capture = Expansion :</strong> Quand vous mangez une pièce, vous DEVEZ poser une nouvelle
+                    case sur le plateau.</li>
+                <li>La nouvelle case doit toucher une case existante (diagonales incluses).</li>
+                <li><strong>Règles Spéciales :</strong> Le Roque et la Prise en passant sont activés.</li>
+                <li><strong>Victoire :</strong> Capturez le Roi adverse !</li>
+            </ul>
+            <button id="startGameBtn" class="action-btn">Commencer</button>
+        </div>
+    </div>
+
+    <div class="game-wrapper">
+        <div class="board-area">
+            <div class="board-container" id="boardScrollContainer">
+                <div class="chess-board" id="chessBoard">
+                    <!-- Squares generated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar mobile-panel" id="sidebar">
+            <div class="hud-panel">
+                <h1 class="game-title">Expanding Chess</h1>
+                <div id="capturedBlack" class="captured-pieces"></div>
+                <div class="turn-indicator" id="turnIndicator">Tour des Blancs</div>
+                <div class="strikes-display">
+                    <div class="strike-item white">Blancs : <span id="whiteStrikes">0</span>/3</div>
+                    <div class="strike-item black">Noirs : <span id="blackStrikes">0</span>/3</div>
+                </div>
+                <div id="capturedWhite" class="captured-pieces"></div>
+                <div class="message-area" id="messageArea"></div>
+            </div>
+
+            <div class="history-container">
+                <h3>Historique</h3>
+                <div class="history-list" id="historyList">
+                    <!-- Moves populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notificationContainer" class="notification-container"></div>
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morpion Premium</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+
+<body>
+    <a href="../index.html" class="dashboard-btn" title="Retour au menu">🏠</a>
+
+    <!-- Mobile Toggle Buttons -->
+    <button class="mobile-toggle" id="toggleP1" title="Inventaire Joueur 1">👤1</button>
+    <button class="mobile-toggle" id="toggleP2" title="Inventaire Joueur 2">👤2</button>
+    <button class="mobile-toggle" id="toggleScore" title="Score">🏆</button>
+
+    <div class="background-globes">
+        <div class="globe globe-1"></div>
+        <div class="globe globe-2"></div>
+        <div class="globe globe-3"></div>
+    </div>
+
+    <!-- Multiplayer Modal -->
+    <div id="multiplayerModal" class="modal">
+        <div class="modal-content">
+            <h2>Morpion en Ligne</h2>
+            <div id="mpInitial">
+                <div class="room-options">
+                    <input type="text" id="roomNameInput" placeholder="Nom du salon" class="room-input"
+                        style="margin-bottom: 5px;">
+                    <label
+                        style="display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-bottom: 20px;">
+                        <input type="checkbox" id="publicRoomCheck" checked> Salon Public
+                    </label>
+                </div>
+                <button id="createRoomBtn" class="action-btn">Créer un salon</button>
+
+                <div class="separator">OU SALONS PUBLICS</div>
+
+                <div class="room-selection-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <select id="roomsSelect" class="room-input" style="margin-bottom: 0; flex: 1;">
+                        <option value="">Aucun salon public...</option>
+                    </select>
+                    <button id="joinSelectedBtn" class="action-btn" style="width: auto; padding: 0 15px;">OK</button>
+                </div>
+
+                <div class="separator">OU PAR CODE</div>
+                <input type="text" id="roomInput" placeholder="Code à 4 chiffres" class="room-input">
+                <button id="joinRoomBtn" class="action-btn">Rejoindre</button>
+                <div class="separator">OU</div>
+                <button id="localModeBtn" class="action-btn" style="background: var(--accent-color);">Jouer en
+                    Local</button>
+            </div>
+            <div id="mpWaiting" style="display: none;">
+                <p>Salon : <strong id="displayRoomName">----</strong></p>
+                <p>Code d'accès : <strong id="displayRoomId">----</strong></p>
+                <p>En attente d'un adversaire...</p>
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customize Modal -->
+    <div id="customizeModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2 id="configTitle">Personnalisation des Joueurs</h2>
+            <p id="playerRoleDisplay" style="color: var(--accent-color); font-weight: bold; margin-bottom: 1rem;"></p>
+
+            <div class="player-config">
+                <h3>Joueur 1</h3>
+                <label>Forme:
+                    <select id="p1-shape">
+                        <option value="cross">Croix</option>
+                        <option value="circle">Rond</option>
+                        <option value="square">Carré</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="diamond">Losange</option>
+                    </select>
+                </label>
+                <label>Couleur:
+                    <select id="p1-color">
+                        <option value="red">Rouge</option>
+                        <option value="green">Vert</option>
+                        <option value="blue" selected>Bleu</option>
+                        <option value="yellow">Jaune</option>
+                        <option value="white">Blanc</option>
+                        <option value="black">Noir</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="player-config">
+                <h3>Joueur 2</h3>
+                <label>Forme:
+                    <select id="p2-shape">
+                        <option value="cross">Croix</option>
+                        <option value="circle" selected>Rond</option>
+                        <option value="square">Carré</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="diamond">Losange</option>
+                    </select>
+                </label>
+                <label>Couleur:
+                    <select id="p2-color">
+                        <option value="red" selected>Rouge</option>
+                        <option value="green">Vert</option>
+                        <option value="blue">Bleu</option>
+                        <option value="yellow">Jaune</option>
+                        <option value="white">Blanc</option>
+                        <option value="black">Noir</option>
+                    </select>
+                </label>
+            </div>
+
+            <div id="configError" class="error-message" style="display: none; color: #ef4444; margin-bottom: 1rem;">
+                Les deux joueurs ne peuvent pas avoir la même forme ET la même couleur !
+            </div>
+
+            <button id="startGameBtn" class="restart-btn">Commencer</button>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rulesModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Règles du Jeu</h2>
+            <p>Bienvenue dans le Morpion Gobblet !</p>
+            <ul>
+                <li>Chaque joueur possède 3 tailles de pions : Petit, Moyen, Grand.</li>
+                <li>Inventaire : 2 Grands, 2 Moyens, 4 Petits.</li>
+                <li>Vous pouvez placer un pion sur une case vide.</li>
+                <li>Vous pouvez "manger" (recouvrir) un pion plus petit avec un plus grand.</li>
+                <li>Alignez 3 de vos pions (visibles) pour gagner !</li>
+            </ul>
+            <button id="closeRulesBtn" class="restart-btn">J'ai compris</button>
+        </div>
+    </div>
+
+    <div class="main-wrapper">
+        <!-- Player 1 Inventory -->
+        <div class="inventory-container mobile-panel" id="p1-inventory">
+            <h3>Joueur 1</h3>
+            <div class="inventory-slots">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <div class="container">
+            <h1 class="title">Morpion Gobblet</h1>
+
+            <div class="status-container">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="player-turn" id="playerTurn">Tour du joueur <span
+                            id="currentPlayerName">1</span></span>
+                </div>
+            </div>
+
+            <div class="game-board" id="gameBoard">
+                <div class="cell" data-index="0"></div>
+                <div class="cell" data-index="1"></div>
+                <div class="cell" data-index="2"></div>
+                <div class="cell" data-index="3"></div>
+                <div class="cell" data-index="4"></div>
+                <div class="cell" data-index="5"></div>
+                <div class="cell" data-index="6"></div>
+                <div class="cell" data-index="7"></div>
+                <div class="cell" data-index="8"></div>
+            </div>
+
+            <button class="restart-btn" id="restartBtn">Réinitialiser</button>
+        </div>
+
+        <!-- Player 2 Inventory -->
+        <div class="inventory-container mobile-panel" id="p2-inventory">
+            <h3>Joueur 2</h3>
+            <div class="inventory-slots">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <div class="scoreboard-container mobile-panel" id="scoreboard">
+            <h2>Score</h2>
+            <div class="score-table">
+                <div class="score-item">
+                    <span class="player-icon" id="scoreIcon1">J1</span>
+                    <span class="score-value" id="scoreX">0</span>
+                </div>
+                <div class="score-divider"></div>
+                <div class="score-item">
+                    <span class="player-icon" id="scoreIcon2">J2</span>
+                    <span class="score-value" id="scoreO">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

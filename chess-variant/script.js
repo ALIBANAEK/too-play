@@ -29,6 +29,10 @@ let turnCount = 1;
 let lastMove = null; // { fromX, fromY, toX, toY, piece, type }
 let strikes = { white: 0, black: 0 };
 let boardHistory = new Map(); // For threefold repetition
+let isDragging = false;
+let draggedPieceEl = null;
+let dragStartKey = null;
+let dragOffset = { x: 0, y: 0 };
 const whiteStrikesEl = document.getElementById('whiteStrikes');
 const blackStrikesEl = document.getElementById('blackStrikes');
 const promotionModal = document.getElementById('promotionModal');
@@ -352,6 +356,33 @@ function renderPieces() {
             pieceEl.style.transform = 'translate(-50%, -50%)';
 
             sq.element.appendChild(pieceEl);
+
+            // Drag and Drop listeners
+            pieceEl.addEventListener('mousedown', (e) => {
+                if (socket && myColor && currentTurn !== myColor) return;
+                if (piece.color !== currentTurn) return;
+                if (mode !== 'move') return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                isDragging = true;
+                draggedPieceEl = pieceEl;
+                dragStartKey = coord;
+
+                // Selection logic (show moves)
+                const [x, y] = coord.split(',').map(Number);
+                selectPiece(coord, x, y);
+
+                const rect = pieceEl.getBoundingClientRect();
+                dragOffset = {
+                    x: e.clientX - rect.left - rect.width / 2,
+                    y: e.clientY - rect.top - rect.height / 2
+                };
+
+                pieceEl.classList.add('dragging');
+                document.body.style.cursor = 'grabbing';
+            });
         }
     });
 }
@@ -409,6 +440,56 @@ function handleSquareClick(x, y) {
         deselect();
     }
 }
+
+// Global Drag Handlers
+window.addEventListener('mousemove', (e) => {
+    if (!isDragging || !draggedPieceEl) return;
+
+    // We use translate to move the piece. 
+    // Since it's absolutely positioned in the square, we need to handle the offset.
+    // The piece is centered in the square (50%, 50%).
+
+    // Simplest way: set fixed position or use transform.
+    // However, the board might be scaled/rotated.
+    // Let's use fixed positioning relative to viewport for the dragged element
+    // by removing translate(-50%, -50%) during drag or compensating for it.
+
+    draggedPieceEl.style.left = (e.clientX - dragOffset.x) + 'px';
+    draggedPieceEl.style.top = (e.clientY - dragOffset.y) + 'px';
+    draggedPieceEl.style.position = 'fixed';
+    draggedPieceEl.style.transform = 'translate(-50%, -50%)';
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    document.body.style.cursor = '';
+
+    if (draggedPieceEl) {
+        draggedPieceEl.classList.remove('dragging');
+
+        // Find square under mouse
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        const square = elements.find(el => el.classList.contains('square') && !el.classList.contains('place-mode'));
+
+        if (square && square.dataset.coord) {
+            const targetKey = square.dataset.coord;
+            const validMove = validMoves.find(m => m.target === targetKey);
+
+            if (validMove) {
+                executeMove(dragStartKey, validMove);
+            } else {
+                // Return to original position
+                renderPieces();
+            }
+        } else {
+            // Return to original position
+            renderPieces();
+        }
+
+        draggedPieceEl = null;
+    }
+});
 
 function incrementStrike(color) {
     strikes[color]++;

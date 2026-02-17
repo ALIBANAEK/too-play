@@ -336,6 +336,14 @@ body {
 .piece {
     cursor: grab;
     z-index: 5;
+    transition: none;
+}
+
+.piece.dragging {
+    cursor: grabbing;
+    z-index: 1000;
+    pointer-events: none;
+    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
 }
 
 .promotion-options {

@@ -285,7 +285,7 @@ body {
     left: 50%;
     width: 0;
     height: 0;
-    transition: transform 0.3s ease-out;
+    /* transition removed to allow instant sync with scroll in JS */
     transform-origin: 0 0;
 }
 
@@ -719,9 +719,7 @@ body {
 
 
 
-.chess-board.rotated-view {
-    transform: translate(-50%, -50%) rotate(180deg) !important;
-}
+
 
 .rotated-view .piece,
 .rotated-view .coord-label,

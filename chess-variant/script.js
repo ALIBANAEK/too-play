@@ -38,6 +38,8 @@ let dragOffset = { x: 0, y: 0 };
 let isPanning = false;
 let startPanPos = { x: 0, y: 0 };
 let boardScale = 1;
+let currentTransX = 0;
+let currentTransY = 0;
 const boardArea = document.querySelector('.board-area');
 const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
@@ -237,10 +239,17 @@ function initGame() {
 
 function recenterBoard() {
     const container = document.getElementById('boardScrollContainer');
-    if (container) {
-        const area = container.parentElement;
-        area.scrollLeft = (container.offsetWidth - area.offsetWidth) / 2;
-        area.scrollTop = (container.offsetHeight - area.offsetHeight) / 2;
+    if (container && boardArea) {
+        const vw = boardArea.clientWidth;
+        const vh = boardArea.clientHeight;
+
+        // The center of the 4000x4000 container
+        const baseCenterX = container.offsetWidth / 2;
+        const baseCenterY = container.offsetHeight / 2;
+
+        // With our new transform order, the board center (D4/E5) is fixed at the container center.
+        boardArea.scrollLeft = baseCenterX - vw / 2;
+        boardArea.scrollTop = baseCenterY - vh / 2;
     }
 }
 
@@ -266,19 +275,42 @@ function createSquare(x, y) {
     if (x === 0) addCoordLabel(square, 'rank', getRankLabel(y));
 
     square.addEventListener('mousedown', (e) => {
-        // Stop propagation only if we are dragging a piece.
-        // If we are not dragging a piece, let it bubble to boardArea for panning.
+        // Always set startPanPos for click detection on mouseup
+        startPanPos = {
+            x: e.clientX,
+            y: e.clientY,
+            scrollLeft: boardArea.scrollLeft,
+            scrollTop: boardArea.scrollTop
+        };
+
         const piece = pieces.get(key);
         if (piece && piece.color === currentTurn && mode === 'move') {
-            // Dragging piece logic will be handled here (starting the drag)
-            // But if we want to allow panning on squares containing pieces,
-            // we should be careful. Usually, dragging a piece takes precedence.
+            if (socket && myColor && currentTurn !== myColor) return;
+
+            isDragging = true;
+            draggedPieceEl = square.querySelector('.piece');
+            dragStartKey = key;
+
+            // Selection logic (show moves)
+            const [sx, sy] = key.split(',').map(Number);
+            selectPiece(key, sx, sy);
+
+            if (draggedPieceEl) {
+                const rect = draggedPieceEl.getBoundingClientRect();
+                dragOffset = {
+                    x: e.clientX - rect.left - rect.width / 2,
+                    y: e.clientY - rect.top - rect.height / 2
+                };
+
+                draggedPieceEl.classList.add('dragging');
+                document.body.style.cursor = 'grabbing';
+            }
+            e.stopPropagation();
         }
     });
 
     square.addEventListener('mouseup', (e) => {
         // Only handle click if we didn't pan significantly
-        if (isPanning) return;
         const dx = Math.abs(e.clientX - startPanPos.x);
         const dy = Math.abs(e.clientY - startPanPos.y);
         if (dx < 5 && dy < 5) {
@@ -385,32 +417,8 @@ function renderPieces() {
 
             sq.element.appendChild(pieceEl);
 
-            // Drag and Drop listeners
-            pieceEl.addEventListener('mousedown', (e) => {
-                if (socket && myColor && currentTurn !== myColor) return;
-                if (piece.color !== currentTurn) return;
-                if (mode !== 'move') return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                isDragging = true;
-                draggedPieceEl = pieceEl;
-                dragStartKey = coord;
-
-                // Selection logic (show moves)
-                const [x, y] = coord.split(',').map(Number);
-                selectPiece(coord, x, y);
-
-                const rect = pieceEl.getBoundingClientRect();
-                dragOffset = {
-                    x: e.clientX - rect.left - rect.width / 2,
-                    y: e.clientY - rect.top - rect.height / 2
-                };
-
-                pieceEl.classList.add('dragging');
-                document.body.style.cursor = 'grabbing';
-            });
+            // Pieces are visual overlays; squares handle all clicks/drags
+            pieceEl.style.pointerEvents = 'none';
         }
     });
 }
@@ -508,22 +516,28 @@ window.addEventListener('mouseup', (e) => {
     if (draggedPieceEl) {
         draggedPieceEl.classList.remove('dragging');
 
-        // Find square under mouse
-        const elements = document.elementsFromPoint(e.clientX, e.clientY);
-        const square = elements.find(el => el.classList.contains('square') && !el.classList.contains('place-mode'));
+        const dx = Math.abs(e.clientX - startPanPos.x);
+        const dy = Math.abs(e.clientY - startPanPos.y);
 
-        if (square && square.dataset.coord) {
-            const targetKey = square.dataset.coord;
-            const validMove = validMoves.find(m => m.target === targetKey);
+        // Only handle drag-and-drop if there was significant movement
+        if (dx > 5 || dy > 5) {
+            const elements = document.elementsFromPoint(e.clientX, e.clientY);
+            const square = elements.find(el => el.classList.contains('square') && !el.classList.contains('place-mode'));
 
-            if (validMove) {
-                executeMove(dragStartKey, validMove);
+            if (square && square.dataset.coord) {
+                const targetKey = square.dataset.coord;
+                const validMove = validMoves.find(m => m.target === targetKey);
+
+                if (validMove) {
+                    executeMove(dragStartKey, validMove);
+                } else {
+                    renderPieces();
+                }
             } else {
-                // Return to original position
                 renderPieces();
             }
         } else {
-            // Return to original position
+            // It was a click, snap piece back and let handleSquareClick handle it
             renderPieces();
         }
 
@@ -952,32 +966,73 @@ function updateTurnIndicator() {
     turnIndicator.style.textShadow = currentTurn === 'black' ? '0 0 5px white' : 'none';
 }
 function updateBoardTransform() {
-    if (activeSquares.size === 0) return;
+    // Fixed center at the middle of a standard 8x8 board (indices 0-7)
+    const centerX = 3.5;
+    const centerY = 3.5;
 
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    activeSquares.forEach((v, k) => {
-        const [x, y] = k.split(',').map(Number);
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-    });
-
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
+    // The chessBoard element's origin (0,0) is its top-left.
+    // To center the 8x8 board at the container's center, we need to translate
+    // the chessBoard so that its (centerX * SQUARE_SIZE, centerY * SQUARE_SIZE) point
+    // aligns with the container's center.
+    // Since the chessBoard is already positioned at (2000, 2000) in the container,
+    // we need to translate it by -(centerX * SQUARE_SIZE) and -(centerY * SQUARE_SIZE)
+    // relative to its own top-left.
     const transX = -centerX * SQUARE_SIZE;
     const transY = -centerY * SQUARE_SIZE;
+    currentTransX = transX;
+    currentTransY = transY;
 
-    // We use rotate(180deg) if black. 
-    // Since origin is 0,0 (board center point), rotating 180deg flips it around that point.
+    // We use rotate(180deg) if black.
+    // The order of transforms matters: scale, then rotate, then translate.
+    // This ensures scaling happens around the chessBoard's origin (0,0),
+    // then rotation around that same origin, then translation moves the whole
+    // scaled and rotated board.
     const rotation = chessBoard.classList.contains('rotated-view') ? 'rotate(180deg)' : '';
-    chessBoard.style.transform = `translate(${transX}px, ${transY}px) scale(${boardScale}) ${rotation}`;
+    chessBoard.style.transform = `scale(${boardScale}) ${rotation} translate(${transX}px, ${transY}px)`;
 }
 
 function updateZoom(delta) {
+    if (!boardArea) {
+        boardScale = Math.max(0.2, Math.min(3, boardScale + delta));
+        updateBoardTransform();
+        return;
+    }
+
+    const oldScale = boardScale;
     boardScale = Math.max(0.2, Math.min(3, boardScale + delta));
+
+    // Viewport center relative to the boardScrollContainer
+    const vw = boardArea.clientWidth;
+    const vh = boardArea.clientHeight;
+    const scrollX = boardArea.scrollLeft;
+    const scrollY = boardArea.scrollTop;
+
+    // The center of the viewport in content coordinates
+    const centerX = scrollX + vw / 2;
+    const centerY = scrollY + vh / 2;
+
+    // Scaling origin is now the center of the 4000x4000 container (baseCenterX, baseCenterY)
+    // because scale() is at the start of our transform chain.
+    const container = document.getElementById('boardScrollContainer');
+    const originX = container ? container.offsetWidth / 2 : 2000;
+    const originY = container ? container.offsetHeight / 2 : 2000;
+
+    // Relativize center to scaling origin
+    const relX = centerX - originX;
+    const relY = centerY - originY;
+
+    // Apply scaling
     updateBoardTransform();
+
+    // After scale, the content point that was at (centerX, centerY) 
+    // is now at (originX + relX * ratio, originY + relY * ratio)
+    const ratio = boardScale / oldScale;
+    const newCenterX = originX + relX * ratio;
+    const newCenterY = originY + relY * ratio;
+
+    // Adjust scroll to keep that point at viewport center
+    boardArea.scrollLeft = newCenterX - vw / 2;
+    boardArea.scrollTop = newCenterY - vh / 2;
 }
 
 // Board Controls Listeners
@@ -1000,6 +1055,12 @@ if (boardArea) {
             scrollTop: boardArea.scrollTop
         };
     });
+
+    boardArea.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        updateZoom(delta);
+    }, { passive: false });
 }
 
 /* --- Advanced Move Validation (Check/Schach) --- */
